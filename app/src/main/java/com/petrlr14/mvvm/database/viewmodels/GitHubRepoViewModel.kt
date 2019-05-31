@@ -13,10 +13,28 @@ class GitHubRepoViewModel(private val app: Application) : AndroidViewModel(app) 
 
     init {
         val repoDao=RoomDB.getInstance(app).repoDao()
-        repository= GitHubRepoRepository(repoDao)
+        val githubService = GithubService.getGithubService()
+        repository = GithubRepository(repoDao, githubService)
     }
 
     private suspend fun insert(repo:GitHubRepo)=repository.insert(repo)
+
+    fun retrieveRepo(user: String) = ViewModelScope.launch {
+        this@GitHubRepoViewModel.nuke()
+
+        val response = repository.retrieveReposAsync(user).await()
+        if(response.isSuccesful) with(response) {
+            this.body?.forEach {
+                this@GitHubRepoViewModel.insert(it)
+            }
+        } else with(response) {
+            when(response.code()) {
+                404->{
+                    Toast.makeText(app, "RIP", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
 
     fun getAll():LiveData<List<GitHubRepo>>{
         return repository.getAll()
